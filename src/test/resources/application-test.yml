@@ -1,0 +1,26 @@
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/shopping_app_test
+      auto-index-creation: true
+  
+  # Disable default security user
+  security:
+    user:
+      name: disabled
+      password: disabled
+
+jwt:
+  secret: VGVzdFNlY3JldEtleUZvckpXVFRva2VuR2VuZXJhdGlvbk11c3RCZUF0TGVhc3QyNTZCaXRzTG9uZzEyMzQ1Njc4OQ==
+  access-token-expiration: 900000
+  refresh-token-expiration: 604800000
+
+# Disable DataInitializer in tests
+spring.main.allow-bean-definition-overriding: true
+
+logging:
+  level:
+    root: WARN
+    com.shopapp: DEBUG
+    org.springframework.security: WARN
+    org.springframework.test: DEBUG
