@@ -73,7 +73,7 @@ class OrderServiceTest {
     }
 
     private ProductModuleApi.ProductDto createProductDto(String id, String name, BigDecimal price, int stock) {
-        return new ProductModuleApi.ProductDto(id, name, "Category", price, stock, "vendorId", "APPROVED");
+        return new ProductModuleApi.ProductDto(id, name, "Category", price, stock, "vendorId", "APPROVED", List.of());
     }
 
     @Nested
@@ -91,9 +91,9 @@ class OrderServiceTest {
             Order savedOrder = Order.builder()
                     .id("order123")
                     .userId("user123")
-                    .items(List.of(OrderItem.create("product1", "Test Product", "vendorId", 2, new BigDecimal("50.00"))))
+                    .items(List.of(OrderItem.create("product1", "Test Product", "", "vendorId", 2, new BigDecimal("50.00"))))
                     .totalAmount(new BigDecimal("100.00"))
-                    .status(OrderStatus.CREATED)
+                    .status(OrderStatus.PLACED)
                     .build();
 
             when(productModuleApi.findById("product1")).thenReturn(Optional.of(productDto));
@@ -104,7 +104,7 @@ class OrderServiceTest {
 
             assertNotNull(response);
             assertEquals("order123", response.getId());
-            assertEquals(OrderStatus.CREATED, response.getStatus());
+            assertEquals(OrderStatus.PLACED, response.getStatus());
             assertEquals(new BigDecimal("100.00"), response.getTotalAmount());
             assertEquals(1, response.getItems().size());
         }
@@ -134,8 +134,8 @@ class OrderServiceTest {
                     new BigDecimal("30.00"), 5);
 
             List<OrderItem> items = new ArrayList<>();
-            items.add(OrderItem.create("product1", "Product 1", "vendorId", 2, new BigDecimal("50.00")));
-            items.add(OrderItem.create("product2", "Product 2", "vendorId", 1, new BigDecimal("30.00")));
+            items.add(OrderItem.create("product1", "Product 1", "", "vendorId", 2, new BigDecimal("50.00")));
+            items.add(OrderItem.create("product2", "Product 2", "", "vendorId", 1, new BigDecimal("30.00")));
 
             Order savedOrder = Order.builder()
                     .id("order123")
@@ -167,7 +167,7 @@ class OrderServiceTest {
                     .id("order123")
                     .userId("user123")
                     .totalAmount(new BigDecimal("100.00"))
-                    .status(OrderStatus.CREATED)
+                    .status(OrderStatus.PLACED)
                     .items(List.of())
                     .build();
 
@@ -203,7 +203,7 @@ class OrderServiceTest {
             CreateOrderRequest request = createValidOrderRequest();
 
             ProductModuleApi.ProductDto pendingProduct = new ProductModuleApi.ProductDto(
-                    "product1", "Test Product", "Category", new BigDecimal("50.00"), 10, "vendorId", "PENDING"
+                    "product1", "Test Product", "Category", new BigDecimal("50.00"), 10, "vendorId", "PENDING", List.of()
             );
 
             when(productModuleApi.findById("product1")).thenReturn(Optional.of(pendingProduct));
@@ -319,7 +319,7 @@ class OrderServiceTest {
 
             orderService.confirmOrder("order123");
 
-            assertEquals(OrderStatus.CONFIRMED, order.getStatus());
+            assertEquals(OrderStatus.PREPARING, order.getStatus());
             assertNotNull(order.getConfirmedAt());
         }
 
@@ -353,10 +353,10 @@ class OrderServiceTest {
 
             when(orderRepository.findById("order123")).thenReturn(Optional.of(order));
 
-            BadRequestException exception = assertThrows(BadRequestException.class, 
+            BadRequestException exception = assertThrows(BadRequestException.class,
                     () -> orderService.confirmOrder("order123"));
-            
-            assertEquals("Only created orders can be confirmed", exception.getMessage());
+
+            assertEquals("Only placed orders can be confirmed", exception.getMessage());
         }
 
         @Test
@@ -508,7 +508,7 @@ class OrderServiceTest {
             Order order = Order.builder()
                     .id("order123")
                     .userId("user123")
-                    .status(OrderStatus.CREATED)
+                    .status(OrderStatus.PLACED)
                     .build();
 
             PaymentSuccessEvent event = new PaymentSuccessEvent(
@@ -520,7 +520,7 @@ class OrderServiceTest {
 
             orderService.handlePaymentSuccess(event);
 
-            assertEquals(OrderStatus.CONFIRMED, order.getStatus());
+            assertEquals(OrderStatus.PREPARING, order.getStatus());
         }
 
         @Test
