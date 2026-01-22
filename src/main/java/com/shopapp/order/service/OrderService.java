@@ -12,7 +12,6 @@ import com.shopapp.shared.events.order.OrderCreatedEvent;
 import com.shopapp.shared.events.payment.PaymentFailedEvent;
 import com.shopapp.shared.events.payment.PaymentSuccessEvent;
 import com.shopapp.shared.exception.BadRequestException;
-import com.shopapp.shared.exception.ForbiddenException;
 import com.shopapp.shared.exception.ResourceNotFoundException;
 import com.shopapp.shared.interfaces.OrderModuleApi;
 import com.shopapp.shared.interfaces.ProductModuleApi;
@@ -42,6 +41,10 @@ public class OrderService implements OrderModuleApi {
 
     @Override
     public Optional<OrderDto> findById(String orderId) {
+        if (orderId == null || orderId.trim().isEmpty()) {
+            return Optional.empty();
+        }
+
         return orderRepository.findById(orderId)
                 .map(this::toOrderDto);
     }
@@ -49,6 +52,10 @@ public class OrderService implements OrderModuleApi {
     @Override
     @Transactional
     public void confirmOrder(String orderId) {
+        if (orderId == null || orderId.trim().isEmpty()) {
+            throw new BadRequestException("Order ID is required");
+        }
+
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order", "id", orderId));
 
@@ -66,6 +73,14 @@ public class OrderService implements OrderModuleApi {
     @Override
     @Transactional
     public void cancelOrder(String orderId, String reason) {
+        if (orderId == null || orderId.trim().isEmpty()) {
+            throw new BadRequestException("Order ID is required");
+        }
+
+        if (reason == null) {
+            reason = "No reason provided";
+        }
+
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order", "id", orderId));
 
@@ -74,8 +89,12 @@ public class OrderService implements OrderModuleApi {
         }
 
         // Restore stock for cancelled items
-        for (OrderItem item : order.getItems()) {
-            productModuleApi.restoreStock(item.getProductId(), item.getQuantity());
+        if (order.getItems() != null) {
+            for (OrderItem item : order.getItems()) {
+                if (item != null && item.getProductId() != null) {
+                    productModuleApi.restoreStock(item.getProductId(), item.getQuantity());
+                }
+            }
         }
 
         order.cancel(reason);
@@ -87,6 +106,18 @@ public class OrderService implements OrderModuleApi {
 
     @Transactional
     public OrderResponse createOrder(String userId, CreateOrderRequest request) {
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new BadRequestException("User ID is required");
+        }
+
+        if (request == null) {
+            throw new BadRequestException("Order request is required");
+        }
+
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new BadRequestException("Order must contain at least one item");
+        }
+
         log.info("Creating order for user: {}", userId);
 
         List<OrderItem> orderItems = new ArrayList<>();
@@ -94,6 +125,17 @@ public class OrderService implements OrderModuleApi {
 
         // Validate products and calculate totals
         for (OrderItemRequest itemRequest : request.getItems()) {
+            if (itemRequest == null) {
+                throw new BadRequestException("Order item cannot be null");
+            }
+
+            if (itemRequest.getProductId() == null || itemRequest.getProductId().trim().isEmpty()) {
+                throw new BadRequestException("Product ID is required for order item");
+            }
+
+            if (itemRequest.getQuantity() == null || itemRequest.getQuantity() <= 0) {
+                throw new BadRequestException("Quantity must be greater than 0 for order item");
+            }
             ProductModuleApi.ProductDto product = productModuleApi.findById(itemRequest.getProductId())
                     .orElseThrow(() -> new BadRequestException(
                             "Product not found: " + itemRequest.getProductId()));
@@ -143,18 +185,42 @@ public class OrderService implements OrderModuleApi {
     }
 
     public OrderResponse getOrder(String userId, String orderId) {
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new BadRequestException("User ID is required");
+        }
+
+        if (orderId == null || orderId.trim().isEmpty()) {
+            throw new BadRequestException("Order ID is required");
+        }
+
         Order order = orderRepository.findByIdAndUserId(orderId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order", "id", orderId));
         return toOrderResponse(order);
     }
 
     public Page<OrderResponse> getUserOrders(String userId, Pageable pageable) {
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new BadRequestException("User ID is required");
+        }
+
+        if (pageable == null) {
+            throw new BadRequestException("Pageable parameter is required");
+        }
+
         return orderRepository.findByUserId(userId, pageable)
                 .map(this::toOrderResponse);
     }
 
     @Transactional
     public OrderResponse cancelUserOrder(String userId, String orderId) {
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new BadRequestException("User ID is required");
+        }
+
+        if (orderId == null || orderId.trim().isEmpty()) {
+            throw new BadRequestException("Order ID is required");
+        }
+
         Order order = orderRepository.findByIdAndUserId(orderId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order", "id", orderId));
 
@@ -163,9 +229,10 @@ public class OrderService implements OrderModuleApi {
         }
 
         cancelOrder(orderId, "Cancelled by user");
-        
+
         // Refresh the order
-        order = orderRepository.findById(orderId).get();
+        order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order", "id", orderId));
         return toOrderResponse(order);
     }
 
@@ -221,6 +288,10 @@ public class OrderService implements OrderModuleApi {
     }
 
     private ShippingAddress toShippingAddress(ShippingAddressRequest request) {
+        if (request == null) {
+            throw new BadRequestException("Shipping address is required");
+        }
+
         return ShippingAddress.builder()
                 .fullName(request.getFullName())
                 .addressLine1(request.getAddressLine1())

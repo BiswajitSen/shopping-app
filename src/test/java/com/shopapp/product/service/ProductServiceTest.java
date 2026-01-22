@@ -23,6 +23,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.math.BigDecimal;
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -102,13 +105,18 @@ class ProductServiceTest {
         void shouldThrowForbiddenExceptionForNonApprovedVendor() {
             CreateProductRequest request = CreateProductRequest.builder()
                     .name("Test Product")
+                    .category("Electronics")
+                    .price(BigDecimal.valueOf(99.99))
+                    .stock(10)
+                    .description("Test description")
+                    .images(List.of("image.jpg"))
                     .build();
 
             when(vendorModuleApi.getVendorIdByUserId("userId123")).thenReturn(Optional.empty());
 
-            ForbiddenException exception = assertThrows(ForbiddenException.class, 
+            ForbiddenException exception = assertThrows(ForbiddenException.class,
                     () -> productService.createProduct("userId123", request));
-            
+
             assertEquals("User is not an approved vendor", exception.getMessage());
         }
 

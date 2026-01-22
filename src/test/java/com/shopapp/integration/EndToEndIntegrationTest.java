@@ -1518,6 +1518,7 @@ class EndToEndIntegrationTest {
         }
     }
 
+    @Nested
     class ErrorHandling {
 
         @Test

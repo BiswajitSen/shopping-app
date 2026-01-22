@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 @Slf4j
@@ -35,12 +36,20 @@ public class ProductService implements ProductModuleApi {
 
     @Override
     public Optional<ProductDto> findById(String productId) {
+        if (productId == null || productId.trim().isEmpty()) {
+            return Optional.empty();
+        }
+
         return productRepository.findById(productId)
                 .map(this::toProductDto);
     }
 
     @Override
     public boolean isApprovedProduct(String productId) {
+        if (productId == null || productId.trim().isEmpty()) {
+            return false;
+        }
+
         return productRepository.findById(productId)
                 .map(Product::isApproved)
                 .orElse(false);
@@ -49,6 +58,14 @@ public class ProductService implements ProductModuleApi {
     @Override
     @Transactional
     public boolean decrementStock(String productId, int quantity) {
+        if (productId == null || productId.trim().isEmpty()) {
+            throw new BadRequestException("Product ID is required");
+        }
+
+        if (quantity <= 0) {
+            throw new BadRequestException("Quantity must be positive");
+        }
+
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
 
@@ -65,6 +82,14 @@ public class ProductService implements ProductModuleApi {
     @Override
     @Transactional
     public void restoreStock(String productId, int quantity) {
+        if (productId == null || productId.trim().isEmpty()) {
+            throw new BadRequestException("Product ID is required");
+        }
+
+        if (quantity <= 0) {
+            throw new BadRequestException("Quantity must be positive");
+        }
+
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
 
@@ -77,17 +102,41 @@ public class ProductService implements ProductModuleApi {
 
     @Transactional
     public ProductResponse createProduct(String userId, CreateProductRequest request) {
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new BadRequestException("User ID is required");
+        }
+
+        if (request == null) {
+            throw new BadRequestException("Product request is required");
+        }
+
+        if (request.getName() == null || request.getName().trim().isEmpty()) {
+            throw new BadRequestException("Product name is required");
+        }
+
+        if (request.getCategory() == null || request.getCategory().trim().isEmpty()) {
+            throw new BadRequestException("Product category is required");
+        }
+
+        if (request.getPrice() == null || request.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Product price must be greater than 0");
+        }
+
+        if (request.getStock() == null || request.getStock() < 0) {
+            throw new BadRequestException("Product stock cannot be negative");
+        }
+
         // Get vendor ID from user ID
         String vendorId = vendorModuleApi.getVendorIdByUserId(userId)
                 .orElseThrow(() -> new ForbiddenException("User is not an approved vendor"));
 
         Product product = Product.builder()
-                .name(request.getName())
-                .category(request.getCategory())
+                .name(request.getName().trim())
+                .category(request.getCategory().trim())
                 .price(request.getPrice())
                 .stock(request.getStock())
-                .description(request.getDescription())
-                .images(request.getImages())
+                .description(request.getDescription() != null ? request.getDescription().trim() : null)
+                .images(request.getImages() != null ? request.getImages() : List.of())
                 .vendorId(vendorId)
                 .status(ProductStatus.PENDING)
                 .visible(true)

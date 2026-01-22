@@ -38,6 +38,26 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        if (request == null) {
+            throw new BadRequestException("Registration request is required");
+        }
+
+        if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
+            throw new BadRequestException("Email is required");
+        }
+
+        if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
+            throw new BadRequestException("Password is required");
+        }
+
+        if (request.getFirstName() == null || request.getFirstName().trim().isEmpty()) {
+            throw new BadRequestException("First name is required");
+        }
+
+        if (request.getLastName() == null || request.getLastName().trim().isEmpty()) {
+            throw new BadRequestException("Last name is required");
+        }
+
         log.info("Registering new user with email: {}", request.getEmail());
 
         // Check if user already exists
@@ -53,10 +73,18 @@ public class AuthService {
                 request.getLastName()
         );
 
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new BadRequestException("Failed to create user account");
+        }
+
         Set<Role> roles = Set.of(Role.USER);
-        
+
         // Generate tokens
         String accessToken = jwtService.generateAccessToken(userId, request.getEmail(), roles);
+        if (accessToken == null || accessToken.trim().isEmpty()) {
+            throw new BadRequestException("Failed to generate access token");
+        }
+
         // Temporarily disable refresh token creation for integration tests
         String refreshToken = "dummy-token-" + userId;
 
@@ -79,6 +107,18 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
+        if (request == null) {
+            throw new BadRequestException("Login request is required");
+        }
+
+        if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
+            throw new BadRequestException("Email is required");
+        }
+
+        if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
+            throw new BadRequestException("Password is required");
+        }
+
         log.info("Login attempt for email: {}", request.getEmail());
 
         // Find user and validate credentials
@@ -99,6 +139,10 @@ public class AuthService {
 
         // Generate tokens
         String accessToken = jwtService.generateAccessToken(user.id(), user.email(), user.roles());
+        if (accessToken == null || accessToken.trim().isEmpty()) {
+            throw new BadRequestException("Failed to generate access token");
+        }
+
         // Temporarily disable refresh token creation for integration tests
         String refreshToken = "dummy-token-" + user.id();
 
@@ -121,9 +165,16 @@ public class AuthService {
 
     @Transactional
     public TokenRefreshResponse refreshToken(TokenRefreshRequest request) {
-        log.info("Token refresh request");
+        if (request == null) {
+            throw new BadRequestException("Token refresh request is required");
+        }
 
         String requestToken = request.getRefreshToken();
+        if (requestToken == null || requestToken.trim().isEmpty()) {
+            throw new BadRequestException("Refresh token is required");
+        }
+
+        log.info("Token refresh request");
 
         // Validate the refresh token format
         if (!jwtService.validateToken(requestToken) || !jwtService.isRefreshToken(requestToken)) {
@@ -164,14 +215,22 @@ public class AuthService {
 
     @Transactional
     public void logout(String userId) {
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new BadRequestException("User ID is required for logout");
+        }
+
         log.info("Logging out user: {}", userId);
-        
+
         // Revoke all refresh tokens for the user
-        refreshTokenRepository.findByUserIdAndRevokedFalse(userId)
-                .forEach(token -> {
-                    token.setRevoked(true);
-                    refreshTokenRepository.save(token);
-                });
+        if (refreshTokenRepository != null) {
+            refreshTokenRepository.findByUserIdAndRevokedFalse(userId)
+                    .forEach(token -> {
+                        if (token != null) {
+                            token.setRevoked(true);
+                            refreshTokenRepository.save(token);
+                        }
+                    });
+        }
 
         log.info("User logged out successfully: {}", userId);
     }
